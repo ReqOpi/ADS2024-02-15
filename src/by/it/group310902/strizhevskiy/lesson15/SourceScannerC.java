@@ -46,7 +46,7 @@ public class SourceScannerC {
    private static final String WHITESPACES = "\\s*";
 
    private static final String SINGLE_LINE_COMMENT = "//([^\n]*)([\n]?)";
-   private static final String MULTILINE_COMMENT = "/[*]([^*]|([*][^/]))*[*]/";
+   private static final String MULTILINE_COMMENT = "/[*]([^*]*[*](?=[^/]))*[*]/";
    private static final String COMMENT = "("+SINGLE_LINE_COMMENT+")|("+MULTILINE_COMMENT+")";
 
    private static final String WHITESPACES_AND_COMMENTS_S = "(("+WHITESPACES+")|("+COMMENT+"))*";
