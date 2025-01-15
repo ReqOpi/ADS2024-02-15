@@ -58,9 +58,28 @@ public class SourceScannerC {
 
    private static ArrayList<FileNote> fileNotes;
 
-   private static class FileNote { int size; String path; String data; }
+   private static int lowEditDist = 9;
 
-   private static int lowEditDist = 10;
+   private static class FileNote {
+      FileNote parent; int count; boolean visited;
+      int size; String path; String[] data;
+
+      public FileNote() { parent = this; }
+
+      public void setParent(FileNote p) {
+         if (parent != p) {
+            if (parent != this) { parent.setParent(p); }
+            parent = p;
+         }
+      }
+
+      public FileNote getParent() {
+         if (parent == this) { return this; }
+         FileNote p = parent.getParent();
+         parent = p;
+         return parent;
+      }
+   }
 
    public static void main(String[] args) {
       fileNotes = new ArrayList<FileNote>();
@@ -68,19 +87,47 @@ public class SourceScannerC {
       fileNotes.sort((a,b) -> {
          return a.size != b.size ? a.size-b.size : a.path.compareTo(b.path);
       });
+
+      FileNote[] link = new FileNote[2];
+
       for (int i = 0; i < fileNotes.size(); i++) {
-         System.out.println(i+"/"+fileNotes.size());
+         System.out.printf("%s/%s%n", i, fileNotes.size());
          for (int j = i+1; j < fileNotes.size(); j++) {
-            FileNote fn = fileNotes.get(i);
-            FileNote tn = fileNotes.get(j);
-            if (isDistanceEdintingLow(fn.data, tn.data)) {
-               System.out.println("------------------------------");
-               System.out.println(fn.path);
-               System.out.println(tn.path);
-               System.out.println("------------------------------");
+            link[0] = fileNotes.get(i);
+            link[1] = fileNotes.get(j);
+
+            if (link[1].size - link[0].size > lowEditDist) { break; }
+
+            if (isDistanceEdintingLow(link[0].data, link[1].data)) {
+               link[0] = link[0].getParent();
+               link[1] = link[1].getParent();
+
+               if (link[0] == link[1]) { continue; }
+
+               if (link[0].count > link[1].count) {
+                  link[0].count += link[1].count;
+                  link[1].setParent(link[0]);
+               } else {
+                  link[1].count += link[0].count;
+                  link[0].setParent(link[1]);
+               }
             }
          }
       }
+      
+      fileNotes.sort((a,b) -> {
+         return a.getParent().hashCode() - b.getParent().hashCode();
+      });
+
+      FileNote g = fileNotes.get(0);
+      for (FileNote fn : fileNotes) {
+         if (g != fn.getParent()) {
+            System.out.println();
+            g = fn.getParent();
+         }
+         System.out.println(fn.path);
+      }
+      
    }
 
    static void processDir(File dir) {
@@ -116,9 +163,9 @@ public class SourceScannerC {
          fileUsefulData = fileUsefulData.replaceAll(WHITESPACES_AND_COMMENTS_P, " ").trim();
 
          FileNote fn = new FileNote();
-         fn.size = fileUsefulData.getBytes().length;
          fn.path = file.getAbsolutePath().substring(srcNameSize);
-         fn.data = fileUsefulData;
+         fn.data = fileUsefulData.split("[{};] ?");
+         fn.size = fn.data.length;
 
          fileNotes.add(fn);
          
@@ -128,33 +175,39 @@ public class SourceScannerC {
       }
    }
 
-   static boolean isDistanceEdintingLow(String one, String two) {
-         if (Math.abs(one.length()-two.length()) >= lowEditDist) { return false; }
+   static boolean isDistanceEdintingLow(String[] one, String[] two) {
+         if (one.length > two.length) {
+            String[] temp = one;
+            one = two;
+            two = temp;
+         }
 
-        int[][] buf = new int[1+two.length()][1+one.length()];
+         if (two.length - one.length > lowEditDist) {
+            return false;
+         }
 
-        for (int j = 1; j < one.length(); j++) {
-            buf[0][j] = j;
+        int[] prev = new int[one.length+1];
+        int[] curr = new int[one.length+1];
+        int[] temp;
+
+
+        for (int j = 0; j < one.length+1; j++) {
+            prev[j] = j;
         }
 
-        for (int i = 1; i < two.length(); i++) {
-            buf[i][0] = i;
-        }
-
-        for (int i = 1; i <= two.length(); i++) {
-            int lvl = Integer.MAX_VALUE;
-            for (int j = 1; j <= one.length(); j++) {
-                int u = buf[i-1][j]+1;
-                int l = buf[i][j-1]+1;
-                int d = buf[i-1][j-1];
-                if (two.charAt(i-1) != one.charAt(j-1)) { d++; }
-                buf[i][j] = Math.min(Math.min(u,l),d);
-                lvl = Math.min(lvl, buf[i][j]);
+        for (int i = 1; i <= two.length; i++) {
+            curr[0] = i;
+            for (int j = 1; j <= one.length; j++) {
+                int u = prev[j]+1;
+                int l = curr[j-1]+1;
+                int d = prev[j-1];
+                if (!two[i-1].equals(one[j-1])) { d++; }
+                curr[j] = Math.min(Math.min(u,l),d);
             }
-            if (lvl >= lowEditDist) { return false; }
+            temp = prev; prev = curr; curr = temp;
         }
 
-        return true;
+        return prev[one.length] <= lowEditDist;
     }
 
 }
